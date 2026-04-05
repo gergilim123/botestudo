@@ -1,0 +1,10 @@
+Dúvidas comuns – Firewall BluePex
+
+1. Posso acessar via SSH?
+Não. O acesso ao firewall é feito exclusivamente pela interface administrativa.
+
+2. Posso instalar plugins ou pacotes?
+Não. O ambiente é controlado e não permite instalação de componentes adicionais.
+
+3. Posso alterar qualquer configuração?
+Apenas as configurações disponíveis na interface do cliente.

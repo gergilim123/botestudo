@@ -1,0 +1,37 @@
+Modelos do Firewall BluePex
+
+Os modelos são definidos conforme abaixo:
+## Modelos 1.000 | 1.500 | 2.000
+Interfaces: WAN, LAN , OPT1, OPT2
+Dispositivos máximos: 20, 50, 75
+
+## Modelo 2.500
+Interfaces: WAN, LAN , OPT1, OPT2, OPT3, OPT4
+Dispositivos máximos: 100
+
+## Modelo 3.000
+Interfaces: WAN, LAN , OPT1, OPT2, OPT3, OPT4
+Dispositivos máximos: 200
+
+## Modelo 3.500
+Interfaces: WAN, LAN , OPT1, OPT2, OPT3, OPT4, OPT5, OPT6, OPT7, OPT8
+Dispositivos máximos: 300
+
+## Modelo 4.000 
+Interfaces: WAN, LAN , OPT1, OPT2, OPT3, OPT4, OPT5, OPT6, OPT7, OPT8
+Dispositivos máximos: 500
+
+## Modelo 4.500 
+Interfaces: WAN, LAN , OPT1, OPT2, OPT3, OPT4, OPT5, OPT6, OPT7, OPT8
+Dispositivos máximos: 1000
+
+## Modelo 5.000 
+Interfaces: WAN, LAN , OPT1, OPT2, OPT3, OPT4, OPT5, OPT6, OPT7, OPT8
+(10 ou +)
+Dispositivos máximos: 2000
+
+## Modelo 5.500 
+Interfaces: WAN, LAN , OPT1, OPT2, OPT3, OPT4, OPT5, OPT6, OPT7, OPT8
+(10 ou +)
+Dispositivos máximos: 3000 
+

@@ -1,0 +1,15 @@
+O Firewall BluePex é uma solução de segurança de rede corporativa, projetada para controle de tráfego, proteção contra ameaças, segmentação de rede e gerenciamento centralizado.
+
+A administração do Firewall BluePex é realizada por meio de interface gráfica, onde é possível configurar regras, políticas, acessos e recursos disponíveis conforme o ambiente.
+
+A solução é voltada para ambientes empresariais, oferecendo estabilidade, controle e visibilidade do tráfego de rede.
+
+Principais capacidades:
+- Controle de acesso por regras de firewall
+- Segmentação de rede por interfaces
+- Configuração de NAT
+- Recursos de VPN
+- Monitoramento de tráfego
+- Aplicação de políticas de segurança
+
+A IA deve sempre orientar o cliente utilizando a interface administrativa disponível, sem sugerir acessos avançados ou não documentados.
