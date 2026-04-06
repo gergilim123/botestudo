@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import psycopg2
 import os
+import hashlib
 from dotenv import load_dotenv
 
 from regras import processar_mensagem
@@ -12,7 +13,7 @@ from memoria import (
     obter_historico,
     salvar_mensagem,
     limpar_historico,
-    fechar_redis
+    fechar_redis,
 )
 
 # =========================
@@ -21,7 +22,7 @@ from memoria import (
 load_dotenv()
 
 # =========================
-# CONFIG DB (PADRÃO .env)
+# CONFIG DB
 # =========================
 DB_HOST = os.getenv("POSTGRES_HOST", "127.0.0.1")
 DB_NAME = os.getenv("POSTGRES_DB", "bot_movidesk")
@@ -36,7 +37,7 @@ def get_conn():
         database=DB_NAME,
         user=DB_USER,
         password=DB_PASS,
-        port=DB_PORT
+        port=DB_PORT,
     )
 
 
@@ -48,9 +49,9 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://10.20.30.19:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://10.20.30.23:3001",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -62,6 +63,7 @@ app.add_middleware(
 # =========================
 class LoginRequest(BaseModel):
     login: str
+    senha: str
 
 
 class CreateChatRequest(BaseModel):
@@ -86,6 +88,48 @@ class MensagemMovidesk(BaseModel):
 
 
 # =========================
+# HELPERS
+# =========================
+def buscar_usuario_para_login(login: str):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    try:
+        cur.execute(
+            """
+            SELECT id, nome, login, password_hash, empresa, ativo
+            FROM users
+            WHERE login = %s
+            """,
+            (login,)
+        )
+        return cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
+
+
+def validar_chat_do_usuario(chat_id: int, user_id: int) -> bool:
+    conn = get_conn()
+    cur = conn.cursor()
+
+    try:
+        cur.execute(
+            "SELECT id FROM chats WHERE id = %s AND user_id = %s",
+            (chat_id, user_id)
+        )
+        chat = cur.fetchone()
+        return bool(chat)
+    finally:
+        cur.close()
+        conn.close()
+
+
+def gerar_hash_senha(senha: str) -> str:
+    return hashlib.sha256(senha.encode()).hexdigest()
+
+
+# =========================
 # STATUS
 # =========================
 @app.get("/")
@@ -98,27 +142,35 @@ def status():
 # =========================
 @app.post("/auth/login")
 def login(dados: LoginRequest):
-    conn = get_conn()
-    cur = conn.cursor()
+    login = dados.login.strip()
+    senha = dados.senha.strip()
 
-    cur.execute(
-        "SELECT id, nome, login, empresa FROM users WHERE login = %s",
-        (dados.login,)
-    )
+    if not login or not senha:
+        raise HTTPException(status_code=400, detail="login e senha são obrigatórios")
 
-    user = cur.fetchone()
-
-    cur.close()
-    conn.close()
+    user = buscar_usuario_para_login(login)
 
     if not user:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
+
+    user_id, nome, user_login, password_hash, empresa, ativo = user
+
+    if ativo is False:
+        raise HTTPException(status_code=403, detail="Usuário inativo")
+
+    if not password_hash:
+        raise HTTPException(status_code=500, detail="Usuário sem senha configurada")
+
+    senha_hash_input = gerar_hash_senha(senha)
+
+    if senha_hash_input != password_hash:
+        raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
 
     return {
-        "id": user[0],
-        "nome": user[1],
-        "login": user[2],
-        "empresa": user[3],
+        "id": user_id,
+        "nome": nome,
+        "login": user_login,
+        "empresa": empresa,
     }
 
 
@@ -130,29 +182,30 @@ def listar_chats(user_id: int):
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute(
-        """
-        SELECT id, titulo, criado_em
-        FROM chats
-        WHERE user_id = %s
-        ORDER BY criado_em DESC
-        """,
-        (user_id,)
-    )
+    try:
+        cur.execute(
+            """
+            SELECT id, titulo, criado_em
+            FROM chats
+            WHERE user_id = %s
+            ORDER BY criado_em DESC
+            """,
+            (user_id,)
+        )
 
-    chats = cur.fetchall()
+        chats = cur.fetchall()
 
-    cur.close()
-    conn.close()
-
-    return [
-        {
-            "id": c[0],
-            "title": c[1],
-            "created_at": str(c[2]),
-        }
-        for c in chats
-    ]
+        return [
+            {
+                "id": c[0],
+                "title": c[1],
+                "created_at": str(c[2]),
+            }
+            for c in chats
+        ]
+    finally:
+        cur.close()
+        conn.close()
 
 
 # =========================
@@ -163,22 +216,32 @@ def criar_chat(dados: CreateChatRequest):
     conn = get_conn()
     cur = conn.cursor()
 
-    cur.execute(
-        """
-        INSERT INTO chats (user_id, titulo)
-        VALUES (%s, 'Novo chat')
-        RETURNING id
-        """,
-        (dados.user_id,)
-    )
+    try:
+        cur.execute(
+            "SELECT id FROM users WHERE id = %s AND ativo = TRUE",
+            (dados.user_id,)
+        )
+        usuario = cur.fetchone()
 
-    chat_id = cur.fetchone()[0]
-    conn.commit()
+        if not usuario:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado ou inativo")
 
-    cur.close()
-    conn.close()
+        cur.execute(
+            """
+            INSERT INTO chats (user_id, titulo)
+            VALUES (%s, 'Novo chat')
+            RETURNING id
+            """,
+            (dados.user_id,)
+        )
 
-    return {"chat_id": chat_id}
+        chat_id = cur.fetchone()[0]
+        conn.commit()
+
+        return {"chat_id": chat_id}
+    finally:
+        cur.close()
+        conn.close()
 
 
 # =========================
@@ -186,25 +249,10 @@ def criar_chat(dados: CreateChatRequest):
 # =========================
 @app.get("/chats/{chat_id}/messages")
 async def obter_mensagens(chat_id: int, user_id: int = Query(...)):
-    conn = get_conn()
-    cur = conn.cursor()
-
-    # valida dono
-    cur.execute(
-        "SELECT id FROM chats WHERE id = %s AND user_id = %s",
-        (chat_id, user_id)
-    )
-
-    chat = cur.fetchone()
-
-    cur.close()
-    conn.close()
-
-    if not chat:
+    if not validar_chat_do_usuario(chat_id, user_id):
         raise HTTPException(status_code=403, detail="Chat não pertence ao usuário")
 
     historico = await obter_historico(str(chat_id), limite=50)
-
     return {"messages": historico}
 
 
@@ -218,21 +266,7 @@ async def chat(dados: ChatMessageRequest):
     if not mensagem:
         raise HTTPException(status_code=400, detail="message é obrigatório")
 
-    conn = get_conn()
-    cur = conn.cursor()
-
-    # valida dono
-    cur.execute(
-        "SELECT id FROM chats WHERE id = %s AND user_id = %s",
-        (dados.chat_id, dados.user_id)
-    )
-
-    chat = cur.fetchone()
-
-    cur.close()
-    conn.close()
-
-    if not chat:
+    if not validar_chat_do_usuario(dados.chat_id, dados.user_id):
         raise HTTPException(status_code=403, detail="Chat inválido para este usuário")
 
     try:
@@ -245,13 +279,12 @@ async def chat(dados: ChatMessageRequest):
 
         historico_atualizado = await obter_historico(str(dados.chat_id), limite=50)
 
+        return {
+            "response": resposta,
+            "history_length": len(historico_atualizado),
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-    return {
-        "response": resposta,
-        "history_length": len(historico_atualizado),
-    }
 
 
 # =========================
@@ -259,24 +292,10 @@ async def chat(dados: ChatMessageRequest):
 # =========================
 @app.post("/chat/reset")
 async def reset_chat(dados: SessionRequest):
-    conn = get_conn()
-    cur = conn.cursor()
-
-    cur.execute(
-        "SELECT id FROM chats WHERE id = %s AND user_id = %s",
-        (dados.chat_id, dados.user_id)
-    )
-
-    chat = cur.fetchone()
-
-    cur.close()
-    conn.close()
-
-    if not chat:
+    if not validar_chat_do_usuario(dados.chat_id, dados.user_id):
         raise HTTPException(status_code=403, detail="Chat inválido")
 
     await limpar_historico(str(dados.chat_id))
-
     return {"status": "ok"}
 
 
@@ -296,4 +315,4 @@ def receber_mensagem(dados: MensagemMovidesk):
 # =========================
 @app.on_event("shutdown")
 async def shutdown_event():
-    await fechar_redis() 
+    await fechar_redis()

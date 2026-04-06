@@ -20,7 +20,7 @@ type ChatItem = {
   created_at: string
 }
 
-const API_BASE = "http://10.20.30.19:8000"
+const API_BASE = "http://10.20.30.23:8000"
 
 const INITIAL_MESSAGE =
   "Olá, sou a Analista IA do Cyber Team da BluePex. Posso te ajudar com orientações iniciais, dúvidas sobre produtos e triagem técnica."
@@ -28,6 +28,7 @@ const INITIAL_MESSAGE =
 export default function Home() {
   const [user, setUser] = useState<LoggedUser | null>(null)
   const [loginInput, setLoginInput] = useState("")
+  const [senhaInput, setSenhaInput] = useState("")
   const [loadingLogin, setLoadingLogin] = useState(false)
 
   const [chats, setChats] = useState<ChatItem[]>([])
@@ -91,8 +92,9 @@ export default function Home() {
 
   async function handleLogin() {
     const login = loginInput.trim()
+    const senha = senhaInput.trim()
 
-    if (!login || loadingLogin) return
+    if (!login || !senha || loadingLogin) return
 
     setLoadingLogin(true)
 
@@ -102,18 +104,19 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ login }),
+        body: JSON.stringify({ login, senha }),
       })
 
       if (!response.ok) {
-        throw new Error("Usuário não encontrado")
+        throw new Error("Usuário ou senha inválidos")
       }
 
       const data: LoggedUser = await response.json()
       localStorage.setItem("bluepex_user", JSON.stringify(data))
       setUser(data)
+      setSenhaInput("")
     } catch {
-      alert("Usuário não encontrado ou backend indisponível.")
+      alert("Usuário, senha ou backend inválido.")
     } finally {
       setLoadingLogin(false)
     }
@@ -132,6 +135,7 @@ export default function Home() {
     ])
     setInput("")
     setLoginInput("")
+    setSenhaInput("")
   }
 
   async function loadChats(userId: number) {
@@ -349,6 +353,12 @@ export default function Home() {
     }
   }
 
+  function handleLoginKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      handleLogin()
+    }
+  }
+
   if (!user) {
     return (
       <div className="flex h-screen items-center justify-center bg-zinc-950 px-4 text-white">
@@ -368,18 +378,27 @@ export default function Home() {
             <input
               value={loginInput}
               onChange={(e) => setLoginInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleLogin()
-                }
-              }}
+              onKeyDown={handleLoginKeyDown}
               placeholder="Ex.: leonardo"
+              className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
+            />
+
+            <label className="block text-sm font-medium text-zinc-300">
+              Senha
+            </label>
+
+            <input
+              type="password"
+              value={senhaInput}
+              onChange={(e) => setSenhaInput(e.target.value)}
+              onKeyDown={handleLoginKeyDown}
+              placeholder="Digite sua senha"
               className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
             />
 
             <button
               onClick={handleLogin}
-              disabled={loadingLogin || !loginInput.trim()}
+              disabled={loadingLogin || !loginInput.trim() || !senhaInput.trim()}
               className="w-full rounded-xl bg-blue-600 px-4 py-3 font-medium transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loadingLogin ? "Entrando..." : "Entrar"}
@@ -387,7 +406,7 @@ export default function Home() {
           </div>
 
           <p className="mt-4 text-xs text-zinc-500">
-            Login fake para testes do painel multiusuário.
+            Login local do ambiente de homologação.
           </p>
         </div>
       </div>
@@ -582,4 +601,4 @@ export default function Home() {
       </main>
     </div>
   )
-} 
+}

@@ -1,9 +1,13 @@
 import json
+import os
 from datetime import datetime, timezone
 
 import redis.asyncio as redis
+from dotenv import load_dotenv
 
-REDIS_URL = "redis://localhost:6379/0"
+load_dotenv()
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 TTL_SECONDS = 60 * 60 * 24  # 24 horas
 MAX_MESSAGES = 50
 
